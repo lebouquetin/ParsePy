@@ -108,7 +108,12 @@ class ParseBase(object):
             url += '?%s' % urlencode(kw)
             data = None
         else:
-            data = data.encode('utf-8')
+            # HACK - 2016-03-18 - D.A.
+            # dirty hack to allow not to encode binary files
+            if '/files/' in uri:
+                data = data
+            else:
+                data = data.encode('utf-8')
 
         headers = {
             'Content-type': 'application/json',
@@ -117,8 +122,13 @@ class ParseBase(object):
         }
         headers.update(extra_headers or {})
 
+        # HACK - 2016-03-18 - D.A.
+        # keep one content-type only
+        if isinstance(headers['Content-type'], tuple):
+            headers['Content-type'] = headers['Content-type'][0]
+
         request = Request(url, data, headers)
-        
+
         if ACCESS_KEYS.get('session_token'):
             request.add_header('X-Parse-Session-Token', ACCESS_KEYS.get('session_token'))
         elif master_key:

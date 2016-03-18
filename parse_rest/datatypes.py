@@ -73,7 +73,7 @@ class ParseType(object):
             not isinstance(python_object, (six.string_types[0], ParseType))):
             # It's an iterable? Repeat this whole process on each object
             if isinstance(python_object, dict):
-                for key, value in python_object.iteritems():
+                for key, value in python_object.items():
                     python_object[key]=ParseType.convert_to_parse(value, as_pointer=as_pointer)
                 return python_object
             else:
@@ -207,8 +207,65 @@ class File(ParseType, ParseBase):
         self._api_url = '/'.join([API_ROOT, 'files', name])
         self._content = content
         self._mimetype = mimetype or mimetypes.guess_type(name)
+
         if not content and not url:
             with open(name) as f:
+                content = f.read()
+        self._content = content
+
+    def __repr__(self):
+        return '<File:%s>' % (getattr(self, '_name', None))
+
+    def _to_native(self):
+        return {
+            '__type': 'File',
+            'name': self._name,
+            'url': self._file_url
+        }
+
+    def save(self, batch=False):
+        if self.url is not None:
+            raise ParseError("Files can't be overwritten")
+        uri = '/'.join([self.__class__.ENDPOINT_ROOT, self.name])
+        headers = {'Content-type': self.mimetype}
+        response = self.__class__.POST(uri, extra_headers=headers, batch=batch, _body=self._content)
+        self._file_url = response['url']
+        self._name = response['name']
+        self._api_url = '/'.join([API_ROOT, 'files', self._name])
+
+        if batch:
+            return response, lambda response_dict: None
+
+    def delete(self, batch=False):
+        uri = "/".join(self.__class__.ENDPOINT_ROOT, self.name)
+        response = self.__class__.DELETE(uri, batch=batch)
+
+        if batch:
+            return response, lambda response_dict: None
+
+    mimetype = property(lambda self: self._mimetype)
+    url = property(lambda self: self._file_url)
+    name = property(lambda self: self._name)
+    _absolute_url = property(lambda self: self._api_url)
+
+
+@complex_type()
+class BinaryFile(ParseType, ParseBase):
+    ENDPOINT_ROOT = '/'.join([API_ROOT, 'files'])
+
+    @classmethod
+    def from_native(cls, **kw):
+        return cls(**kw)
+
+    def __init__(self, name, content=None, mimetype=None, url=None):
+        self._name = name
+        self._file_url = url
+        self._api_url = '/'.join([API_ROOT, 'files', name])
+        self._content = content
+        self._mimetype = mimetype or mimetypes.guess_type(name)
+
+        if not content and not url:
+            with open(name, 'rb') as f:
                 content = f.read()
         self._content = content
 
